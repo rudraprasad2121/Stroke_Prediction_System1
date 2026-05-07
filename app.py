@@ -249,59 +249,107 @@ elif option == "Bulk CSV Prediction":
         "CSV must contain: gender, age, hypertension, heart_disease, ever_married, work_type, Residence_type, avg_glucose_level, bmi, smoking_status"
     )
 
-if uploaded_file is not None:
+    # -----------------------------------------------------
+    # IF FILE UPLOADED
+    # -----------------------------------------------------
 
-    # Read CSV
-    testData = pd.read_csv(uploaded_file)
+    if uploaded_file is not None:
 
-    # Handle null values
-    testData.fillna({
-        'bmi': dataset['bmi'].mean(),
-        'avg_glucose_level': dataset['avg_glucose_level'].mean(),
-        'smoking_status': 'never smoked',
-        'work_type': 'Private',
-        'Residence_type': 'Urban',
-        'ever_married': 'No',
-        'gender': 'Male'
-    }, inplace=True)
+        # Read CSV
+        testData = pd.read_csv(uploaded_file)
 
-    # Copy original
-    original_data = testData.copy()
+        # Handle null values
+        testData.fillna({
+            'bmi': dataset['bmi'].mean(),
+            'avg_glucose_level': dataset['avg_glucose_level'].mean(),
+            'smoking_status': 'never smoked',
+            'work_type': 'Private',
+            'Residence_type': 'Urban',
+            'ever_married': 'No',
+            'gender': 'Male'
+        }, inplace=True)
 
-    st.subheader("Uploaded Data")
+        # Copy original data
+        original_data = testData.copy()
 
-    st.dataframe(testData.head())
+        st.subheader("📄 Uploaded Data")
+
+        st.dataframe(testData.head())
 
         try:
 
-            # ---------------- ENCODE ----------------
+            # -------------------------------------------------
+            # SAFE ENCODING FUNCTION
+            # -------------------------------------------------
+
             def safe_transform(encoder, series):
-    known = set(encoder.classes_)
-    series = series.apply(
-        lambda x: x if x in known else encoder.classes_[0]
-    )
-    return encoder.transform(series)
 
-testData['gender'] = safe_transform(enc1, testData['gender'].astype(str))
-testData['ever_married'] = safe_transform(enc2, testData['ever_married'].astype(str))
-testData['work_type'] = safe_transform(enc3, testData['work_type'].astype(str))
-testData['Residence_type'] = safe_transform(enc4, testData['Residence_type'].astype(str))
-testData['smoking_status'] = safe_transform(enc5, testData['smoking_status'].astype(str))
-            # Remove ID if present
+                known = set(encoder.classes_)
+
+                series = series.apply(
+                    lambda x: x if x in known else encoder.classes_[0]
+                )
+
+                return encoder.transform(series)
+
+            # -------------------------------------------------
+            # ENCODING
+            # -------------------------------------------------
+
+            testData['gender'] = safe_transform(
+                enc1,
+                testData['gender'].astype(str)
+            )
+
+            testData['ever_married'] = safe_transform(
+                enc2,
+                testData['ever_married'].astype(str)
+            )
+
+            testData['work_type'] = safe_transform(
+                enc3,
+                testData['work_type'].astype(str)
+            )
+
+            testData['Residence_type'] = safe_transform(
+                enc4,
+                testData['Residence_type'].astype(str)
+            )
+
+            testData['smoking_status'] = safe_transform(
+                enc5,
+                testData['smoking_status'].astype(str)
+            )
+
+            # Remove id column if exists
             if 'id' in testData.columns:
-                testData.drop(['id'], axis=1, inplace=True)
 
-            # ---------------- PREPROCESS ----------------
+                testData.drop(
+                    ['id'],
+                    axis=1,
+                    inplace=True
+                )
+
+            # -------------------------------------------------
+            # PREPROCESSING
+            # -------------------------------------------------
+
             test_scaled = scaler.transform(testData)
 
             test_selected = selector.transform(test_scaled)
 
-            # ---------------- PREDICTION ----------------
+            # -------------------------------------------------
+            # PREDICTION
+            # -------------------------------------------------
+
             preds = model.predict(test_selected)
 
             probs = model.predict_proba(test_selected)[:, 1]
 
-            # ---------------- ADD RESULTS ----------------
+            # -------------------------------------------------
+            # ADD RESULTS
+            # -------------------------------------------------
+
             original_data['Prediction'] = [
                 "Stroke" if p == 1 else "Normal"
                 for p in preds
@@ -313,20 +361,26 @@ testData['smoking_status'] = safe_transform(enc5, testData['smoking_status'].ast
             ]
 
             original_data['Risk'] = [
-              "Low" if prob < 0.4
-else "Medium" if prob < 0.75
-else "High"
+                "Low" if prob < 0.4
+                else "Medium" if prob < 0.75
+                else "High"
                 for prob in probs
             ]
 
-            # ---------------- DISPLAY ----------------
+            # -------------------------------------------------
+            # DISPLAY RESULTS
+            # -------------------------------------------------
+
             st.success("✅ Prediction Completed")
 
             st.subheader("📊 Prediction Results")
 
             st.dataframe(original_data)
 
-            # ---------------- CHART ----------------
+            # -------------------------------------------------
+            # ANALYTICS CHART
+            # -------------------------------------------------
+
             st.subheader("📈 Prediction Analytics")
 
             stroke_count = len(
@@ -350,7 +404,10 @@ else "High"
                 chart_data.set_index('Category')
             )
 
-            # ---------------- DOWNLOAD ----------------
+            # -------------------------------------------------
+            # DOWNLOAD CSV
+            # -------------------------------------------------
+
             csv = original_data.to_csv(index=False)
 
             st.download_button(
