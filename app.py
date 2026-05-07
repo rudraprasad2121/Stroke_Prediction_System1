@@ -54,13 +54,24 @@ X = selector.fit_transform(X, Y)
 
 # ---------------- MODEL ----------------
 model = cb.CatBoostClassifier(
-    iterations=300,
-    learning_rate=0.1,
-    scale_pos_weight=5,
+    iterations=500,
+    learning_rate=0.05,
+    depth=6,
+    loss_function='Logloss',
+    eval_metric='Accuracy',
     verbose=0
 )
 
-model.fit(X, Y)
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    Y,
+    test_size=0.2,
+    random_state=42
+)
+
+model.fit(X_train, y_train)
 
 # ---------------- SHAP ----------------
 explainer = shap.TreeExplainer(model)
@@ -241,7 +252,18 @@ elif option == "Bulk CSV Prediction":
     if uploaded_file is not None:
 
         # ---------------- READ FILE ----------------
-        testData = pd.read_csv(uploaded_file)
+    testData = pd.read_csv(uploaded_file)
+
+# Handle null values
+testData.fillna({
+    'bmi': dataset['bmi'].mean(),
+    'avg_glucose_level': dataset['avg_glucose_level'].mean(),
+    'smoking_status': 'never smoked',
+    'work_type': 'Private',
+    'Residence_type': 'Urban',
+    'ever_married': 'No',
+    'gender': 'Male'
+}, inplace=True)
 
         st.subheader("📄 Uploaded Data")
 
@@ -252,24 +274,18 @@ elif option == "Bulk CSV Prediction":
         try:
 
             # ---------------- ENCODE ----------------
-            testData['gender'] = enc1.transform(testData['gender'].astype(str))
+            def safe_transform(encoder, series):
+    known = set(encoder.classes_)
+    series = series.apply(
+        lambda x: x if x in known else encoder.classes_[0]
+    )
+    return encoder.transform(series)
 
-            testData['ever_married'] = enc2.transform(
-                testData['ever_married'].astype(str)
-            )
-
-            testData['work_type'] = enc3.transform(
-                testData['work_type'].astype(str)
-            )
-
-            testData['Residence_type'] = enc4.transform(
-                testData['Residence_type'].astype(str)
-            )
-
-            testData['smoking_status'] = enc5.transform(
-                testData['smoking_status'].astype(str)
-            )
-
+testData['gender'] = safe_transform(enc1, testData['gender'].astype(str))
+testData['ever_married'] = safe_transform(enc2, testData['ever_married'].astype(str))
+testData['work_type'] = safe_transform(enc3, testData['work_type'].astype(str))
+testData['Residence_type'] = safe_transform(enc4, testData['Residence_type'].astype(str))
+testData['smoking_status'] = safe_transform(enc5, testData['smoking_status'].astype(str))
             # Remove ID if present
             if 'id' in testData.columns:
                 testData.drop(['id'], axis=1, inplace=True)
@@ -296,9 +312,9 @@ elif option == "Bulk CSV Prediction":
             ]
 
             original_data['Risk'] = [
-                "Low" if prob < 0.3
-                else "Medium" if prob < 0.7
-                else "High"
+              "Low" if prob < 0.4
+else "Medium" if prob < 0.75
+else "High"
                 for prob in probs
             ]
 
