@@ -265,11 +265,12 @@ if uploaded_file is not None:
         'gender': 'Male'
     }, inplace=True)
 
+    # Copy original
+    original_data = testData.copy()
+
     st.subheader("Uploaded Data")
 
     st.dataframe(testData.head())
-
-        original_data = testData.copy()
 
         try:
 
