@@ -1,115 +1,350 @@
-import numpy as np
+import streamlit as st
 import pandas as pd
-import joblib
-from flask import Flask, render_template, request
+import numpy as np
+import shap
+import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
-from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import SelectKBest, chi2
-from sklearn.ensemble import RandomForestClassifier
+from imblearn.over_sampling import SMOTE
+import catboost as cb
 
-# ---------------- APP ----------------
-app = Flask(__name__)
-app.secret_key = "welcome"
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(
+    page_title="Stroke Prediction System",
+    layout="wide"
+)
 
-# ---------------- LOAD & TRAIN ONCE ----------------
+# ---------------- TITLE ----------------
+st.title("🧠 AI-Based Stroke Prediction System")
+st.write("Predict stroke risk using Machine Learning and Explainable AI")
+
+# ---------------- LOAD DATA ----------------
 dataset = pd.read_csv("Dataset/healthcare-dataset-stroke-data.csv")
 dataset.fillna(0, inplace=True)
 
-# Encoders
-encoders = {}
-for col in ['gender','ever_married','work_type','Residence_type','smoking_status']:
-    le = LabelEncoder()
-    dataset[col] = le.fit_transform(dataset[col].astype(str))
-    encoders[col] = le
+# ---------------- ENCODING ----------------
+enc1 = LabelEncoder()
+enc2 = LabelEncoder()
+enc3 = LabelEncoder()
+enc4 = LabelEncoder()
+enc5 = LabelEncoder()
 
-# Split data
+dataset['gender'] = enc1.fit_transform(dataset['gender'].astype(str))
+dataset['ever_married'] = enc2.fit_transform(dataset['ever_married'].astype(str))
+dataset['work_type'] = enc3.fit_transform(dataset['work_type'].astype(str))
+dataset['Residence_type'] = enc4.fit_transform(dataset['Residence_type'].astype(str))
+dataset['smoking_status'] = enc5.fit_transform(dataset['smoking_status'].astype(str))
+
+# ---------------- FEATURES ----------------
 Y = dataset['stroke']
-X = dataset.drop(['id','stroke'], axis=1)
 
-# Scaling
+dataset.drop(['id', 'stroke'], axis=1, inplace=True)
+
+# ---------------- PREPROCESSING ----------------
 scaler = MinMaxScaler()
-X_scaled = scaler.fit_transform(X)
 
-# Feature Selection
+X = scaler.fit_transform(dataset.values)
+
+X, Y = SMOTE().fit_resample(X, Y)
+
 selector = SelectKBest(score_func=chi2, k=9)
-X_selected = selector.fit_transform(X_scaled, Y)
 
-# Train model
-X_train, X_test, y_train, y_test = train_test_split(X_selected, Y, test_size=0.2, random_state=42)
+X = selector.fit_transform(X, Y)
 
-model = RandomForestClassifier(n_estimators=200)
-model.fit(X_train, y_train)
+# ---------------- MODEL ----------------
+model = cb.CatBoostClassifier(
+    iterations=300,
+    learning_rate=0.1,
+    scale_pos_weight=5,
+    verbose=0
+)
 
-print("Model Accuracy:", model.score(X_test, y_test))
+model.fit(X, Y)
 
-# ---------------- ROUTES ----------------
+# ---------------- SHAP ----------------
+explainer = shap.TreeExplainer(model)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+# ---------------- SIDEBAR ----------------
+st.sidebar.title("Navigation")
 
+option = st.sidebar.radio(
+    "Choose Prediction Type",
+    ["Single Prediction", "Bulk CSV Prediction"]
+)
 
-@app.route('/predict', methods=['POST'])
-def predict():
+# =========================================================
+# SINGLE PREDICTION
+# =========================================================
 
-    try:
-        # -------- GET INPUT --------
-        gender = request.form['gender']
-        age = float(request.form['age'])
-        hypertension = int(request.form['hypertension'])
-        heart = int(request.form['heart'])
-        married = request.form['married']
-        work = request.form['work']
-        residence = request.form['residence']
-        glucose = float(request.form['glucose'])
-        bmi = float(request.form['bmi'])
-        smoke = request.form['smoke']
+if option == "Single Prediction":
 
-        # -------- ENCODE --------
-        gender = encoders['gender'].transform([gender])[0]
-        married = encoders['ever_married'].transform([married])[0]
-        work = encoders['work_type'].transform([work])[0]
-        residence = encoders['Residence_type'].transform([residence])[0]
-        smoke = encoders['smoking_status'].transform([smoke])[0]
+    st.header("🧍 Single Patient Prediction")
 
-        # -------- CREATE INPUT --------
-        input_data = np.array([[gender, age, hypertension, heart,
-                                married, work, residence,
-                                glucose, bmi, smoke]])
+    col1, col2 = st.columns(2)
 
-        # -------- SCALE + SELECT --------
-        input_scaled = scaler.transform(input_data)
-        input_selected = selector.transform(input_scaled)
+    with col1:
 
-        # -------- PREDICT --------
-        prob = model.predict_proba(input_selected)[0][1]
+        gender = st.selectbox(
+            "Gender",
+            ["Male", "Female"]
+        )
 
-        # -------- SMART RISK LOGIC --------
-        if prob < 0.3:
-            risk = "Low"
-        elif prob < 0.7:
-            risk = "Medium"
+        age = st.slider(
+            "Age",
+            1,
+            100,
+            30
+        )
+
+        hypertension = st.selectbox(
+            "Hypertension",
+            [0, 1]
+        )
+
+        heart_disease = st.selectbox(
+            "Heart Disease",
+            [0, 1]
+        )
+
+        married = st.selectbox(
+            "Ever Married",
+            ["Yes", "No"]
+        )
+
+    with col2:
+
+        work = st.selectbox(
+            "Work Type",
+            ["Private", "Self-employed", "Govt_job"]
+        )
+
+        residence = st.selectbox(
+            "Residence Type",
+            ["Urban", "Rural"]
+        )
+
+        glucose = st.number_input(
+            "Average Glucose Level",
+            50.0,
+            300.0
+        )
+
+        bmi = st.number_input(
+            "BMI",
+            10.0,
+            60.0
+        )
+
+        smoking = st.selectbox(
+            "Smoking Status",
+            ["never smoked", "formerly smoked", "smokes"]
+        )
+
+    if st.button("Predict Stroke Risk"):
+
+        df = pd.DataFrame([[
+            gender,
+            age,
+            hypertension,
+            heart_disease,
+            married,
+            work,
+            residence,
+            glucose,
+            bmi,
+            smoking
+        ]], columns=[
+            'gender',
+            'age',
+            'hypertension',
+            'heart_disease',
+            'ever_married',
+            'work_type',
+            'Residence_type',
+            'avg_glucose_level',
+            'bmi',
+            'smoking_status'
+        ])
+
+        # ---------------- ENCODE ----------------
+        df['gender'] = enc1.transform(df['gender'])
+        df['ever_married'] = enc2.transform(df['ever_married'])
+        df['work_type'] = enc3.transform(df['work_type'])
+        df['Residence_type'] = enc4.transform(df['Residence_type'])
+        df['smoking_status'] = enc5.transform(df['smoking_status'])
+
+        # ---------------- PREPROCESS ----------------
+        df_scaled = scaler.transform(df)
+
+        df_selected = selector.transform(df_scaled)
+
+        # ---------------- PREDICT ----------------
+        pred = model.predict(df_selected)[0]
+
+        prob = model.predict_proba(df_selected)[0][1]
+
+        # ---------------- RESULT ----------------
+        st.subheader("📊 Prediction Result")
+
+        if pred == 1:
+            st.error("⚠️ High Chance of Stroke")
         else:
-            risk = "High"
+            st.success("✅ Normal")
 
-        result = "Stroke" if prob > 0.5 else "Normal"
+        st.write("### Probability:", round(prob * 100, 2), "%")
 
-        # -------- SAFETY RULE (IMPORTANT) --------
-        if glucose < 140 and bmi < 30 and hypertension == 0:
-            result = "Normal"
-            risk = "Low"
-            prob = min(prob, 0.3)
+        # ---------------- RISK ----------------
+        if prob < 0.3:
+            st.info("🟢 Low Risk")
 
-        return render_template("result.html",
-                               result=result,
-                               prob=round(prob*100,2),
-                               risk=risk)
+        elif prob < 0.7:
+            st.warning("🟡 Medium Risk")
 
-    except Exception as e:
-        return str(e)
+        else:
+            st.error("🔴 High Risk")
 
+        # ---------------- SHAP ----------------
+        st.subheader("🧠 Explainable AI (SHAP)")
 
-# ---------------- RUN ----------------
-if __name__ == '__main__':
-    app.run(debug=True)
+        shap_values = explainer.shap_values(df_selected)
+
+        fig = plt.figure()
+
+        shap.summary_plot(
+            shap_values,
+            df_selected,
+            show=False
+        )
+
+        st.pyplot(fig)
+
+# =========================================================
+# BULK CSV PREDICTION
+# =========================================================
+
+elif option == "Bulk CSV Prediction":
+
+    st.header("📂 Bulk CSV Prediction")
+
+    st.write("Upload CSV file for multiple patient prediction")
+
+    uploaded_file = st.file_uploader(
+        "Upload CSV File",
+        type=["csv"]
+    )
+
+    st.info(
+        "CSV must contain: gender, age, hypertension, heart_disease, ever_married, work_type, Residence_type, avg_glucose_level, bmi, smoking_status"
+    )
+
+    if uploaded_file is not None:
+
+        # ---------------- READ FILE ----------------
+        testData = pd.read_csv(uploaded_file)
+
+        st.subheader("📄 Uploaded Data")
+
+        st.dataframe(testData.head())
+
+        original_data = testData.copy()
+
+        try:
+
+            # ---------------- ENCODE ----------------
+            testData['gender'] = enc1.transform(testData['gender'].astype(str))
+
+            testData['ever_married'] = enc2.transform(
+                testData['ever_married'].astype(str)
+            )
+
+            testData['work_type'] = enc3.transform(
+                testData['work_type'].astype(str)
+            )
+
+            testData['Residence_type'] = enc4.transform(
+                testData['Residence_type'].astype(str)
+            )
+
+            testData['smoking_status'] = enc5.transform(
+                testData['smoking_status'].astype(str)
+            )
+
+            # Remove ID if present
+            if 'id' in testData.columns:
+                testData.drop(['id'], axis=1, inplace=True)
+
+            # ---------------- PREPROCESS ----------------
+            test_scaled = scaler.transform(testData)
+
+            test_selected = selector.transform(test_scaled)
+
+            # ---------------- PREDICTION ----------------
+            preds = model.predict(test_selected)
+
+            probs = model.predict_proba(test_selected)[:, 1]
+
+            # ---------------- ADD RESULTS ----------------
+            original_data['Prediction'] = [
+                "Stroke" if p == 1 else "Normal"
+                for p in preds
+            ]
+
+            original_data['Probability (%)'] = [
+                round(prob * 100, 2)
+                for prob in probs
+            ]
+
+            original_data['Risk'] = [
+                "Low" if prob < 0.3
+                else "Medium" if prob < 0.7
+                else "High"
+                for prob in probs
+            ]
+
+            # ---------------- DISPLAY ----------------
+            st.success("✅ Prediction Completed")
+
+            st.subheader("📊 Prediction Results")
+
+            st.dataframe(original_data)
+
+            # ---------------- CHART ----------------
+            st.subheader("📈 Prediction Analytics")
+
+            stroke_count = len(
+                original_data[
+                    original_data['Prediction'] == 'Stroke'
+                ]
+            )
+
+            normal_count = len(
+                original_data[
+                    original_data['Prediction'] == 'Normal'
+                ]
+            )
+
+            chart_data = pd.DataFrame({
+                'Category': ['Stroke', 'Normal'],
+                'Count': [stroke_count, normal_count]
+            })
+
+            st.bar_chart(
+                chart_data.set_index('Category')
+            )
+
+            # ---------------- DOWNLOAD ----------------
+            csv = original_data.to_csv(index=False)
+
+            st.download_button(
+                label="📥 Download Prediction Results",
+                data=csv,
+                file_name='prediction_results.csv',
+                mime='text/csv'
+            )
+
+        except Exception as e:
+
+            st.error("❌ Error Processing File")
+
+            st.write(e)
