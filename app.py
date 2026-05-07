@@ -249,25 +249,25 @@ elif option == "Bulk CSV Prediction":
         "CSV must contain: gender, age, hypertension, heart_disease, ever_married, work_type, Residence_type, avg_glucose_level, bmi, smoking_status"
     )
 
-    if uploaded_file is not None:
+if uploaded_file is not None:
 
-        # ---------------- READ FILE ----------------
+    # Read CSV
     testData = pd.read_csv(uploaded_file)
 
-# Handle null values
-testData.fillna({
-    'bmi': dataset['bmi'].mean(),
-    'avg_glucose_level': dataset['avg_glucose_level'].mean(),
-    'smoking_status': 'never smoked',
-    'work_type': 'Private',
-    'Residence_type': 'Urban',
-    'ever_married': 'No',
-    'gender': 'Male'
-}, inplace=True)
+    # Handle null values
+    testData.fillna({
+        'bmi': dataset['bmi'].mean(),
+        'avg_glucose_level': dataset['avg_glucose_level'].mean(),
+        'smoking_status': 'never smoked',
+        'work_type': 'Private',
+        'Residence_type': 'Urban',
+        'ever_married': 'No',
+        'gender': 'Male'
+    }, inplace=True)
 
-        st.subheader("📄 Uploaded Data")
+    st.subheader("Uploaded Data")
 
-        st.dataframe(testData.head())
+    st.dataframe(testData.head())
 
         original_data = testData.copy()
 
