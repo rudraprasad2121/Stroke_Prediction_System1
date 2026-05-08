@@ -81,7 +81,9 @@ st.sidebar.title("Navigation")
 
 option = st.sidebar.radio(
     "Choose Prediction Type",
-    ["Single Prediction", "Bulk CSV Prediction", "Model Comparison"]
+    ["Single Prediction", 
+     "Bulk CSV Prediction", 
+     "Model Comparison"]
 )
 
 # =========================================================
