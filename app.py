@@ -418,17 +418,11 @@ elif option == "Bulk CSV Prediction":
                 file_name='prediction_results.csv',
                 mime='text/csv'
             )
-            try:
 
-               # all prediction code
+        except Exception as e:
 
-                st.download_button(...)
-
-            except Exception as e:
-
-    st.error("❌ Error Processing File")
-
-    st.write(e)
+            st.error("❌ Error Processing File")
+            st.write(e)
 
 # =========================================================
 # ADVANCED MODEL COMPARISON DASHBOARD
