@@ -620,20 +620,14 @@ elif option == "Model Comparison":
     st.bar_chart(
         feature_importance.set_index('Feature')
     )
+# -----------------------------------------------------
+# FINAL RESULT
+# -----------------------------------------------------
 
-    # -----------------------------------------------------
-    # FINAL RESULT
-    # -----------------------------------------------------
-
-    st.success(
-        """
-        ✅ CatBoost outperformed other models and was selected
-        as the final model for deployment due to its superior
-        accuracy and stability.
-        """
-    )
-        except Exception as e:
-
-            st.error("❌ Error Processing File")
-
-            st.write(e)
+st.success(
+    """
+    ✅ CatBoost outperformed other models and was selected
+    as the final model for deployment due to its superior
+    accuracy and stability.
+    """
+)
